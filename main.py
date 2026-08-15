@@ -202,6 +202,13 @@ def process_query(message, query_text):
     user_id = message.from_user.id
     username = message.from_user.username or "без username"
     
+    # ========== ИСПРАВЛЕНИЕ ОШИБКИ ==========
+    # Если пользователь отправил пустоту (пробелы, эмодзи без текста), Яндекс выдаст ошибку.
+    if not query_text or query_text.strip() == "":
+        bot.reply_to(message, "❌ Ты отправил пустое сообщение. Напиши нормальный текст или вопрос.")
+        return
+    # ========================================
+    
     user_messages[user_id] = {
         'user_id': user_id,
         'username': username,
@@ -268,7 +275,7 @@ def process_query(message, query_text):
             else:
                 bot.reply_to(message, answer, reply_markup=inline_buttons())
         else:
-            bot.reply_to(message, f"❌ Ошибка: {result.get('error', 'Неизвестная ошибка')}")
+            bot.reply_to(message, f"❌ Ошибка Яндекса: {result.get('error', 'Неизвестная ошибка')}")
             
     except Exception as e:
         bot.reply_to(message, f"❌ Ошибка: {str(e)}\nПопробуй позже.", reply_markup=main_keyboard())
@@ -341,8 +348,9 @@ print(f"👑 Админ ID: {ADMIN_ID}")
 print("📚 6 режимов работы")
 print("=" * 50)
 
-# Нужно для Render (чтобы он знал, что порт занят, даже если это веб-бот)
+# Небольшая заглушка для Render, чтобы он не ругался на порт, если вдруг стоит Web Service
 if os.getenv("PORT"):
     print(f"✅ Render порт {os.getenv('PORT')} определен")
-    
-bot.polling(non_stop=True) # Добавил non_stop=True для надежности
+
+# Запускаем бота с защитой от обрыва соединения
+bot.polling(non_stop=True)
