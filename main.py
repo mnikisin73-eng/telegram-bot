@@ -353,4 +353,4 @@ if os.getenv("PORT"):
     print(f"✅ Render порт {os.getenv('PORT')} определен")
 
 # Запускаем бота с защитой от обрыва соединения
-bot.polling(non_stop=True)
+bot.polling(non_stop=True, skip_pending=True)
