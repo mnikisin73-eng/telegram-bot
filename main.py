@@ -5,7 +5,7 @@ import json
 import time
 import hashlib
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, InputFile
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
 # ========== КОНФИГ ==========
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -20,11 +20,10 @@ if not all([BOT_TOKEN, YANDEX_API_KEY, FOLDER_ID, ADMIN_ID]):
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ========== ХРАНИЛИЩА ==========
-user_history = {}  # Память диалогов
-user_messages = {}  # Статистика пользователей
-file_cache = {}  # Кеш файлов
+user_history = {}
+user_messages = {}
 
-# ========== ПРОМПТЫ ==========
+# ========== ПРОМПТЫ (БЕЗ УПОМИНАНИЙ ЯНДЕКСА) ==========
 SYSTEM_PROMPT = """Ты — профессиональный ассистент с искусственным интеллектом.
 Твои особенности:
 - Отвечаешь максимально подробно и глубоко
@@ -32,7 +31,8 @@ SYSTEM_PROMPT = """Ты — профессиональный ассистент 
 - Помнишь предыдущие сообщения в диалоге
 - Адаптируешься под стиль и потребности пользователя
 
-Важно: Всегда отвечай на русском языке, если пользователь не просит иначе."""
+Важно: Всегда отвечай на русском языке, если пользователь не просит иначе.
+Никогда не упоминай, на какой платформе или модели ты работаешь. Просто отвечай как ИИ-ассистент."""
 
 PROMPTS = {
     "конспект": "Ты — профессиональный конспектировщик. Сделай структурированный, краткий, но ёмкий конспект с ключевыми мыслями.",
@@ -43,7 +43,7 @@ PROMPTS = {
     "напиши": "Ты — профессиональный копирайтер. Напиши качественный, структурированный текст по теме."
 }
 
-# ========== КЛАВИАТУРА (МЕНЮ) ==========
+# ========== КЛАВИАТУРА ==========
 def main_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     keyboard.add(
@@ -58,22 +58,15 @@ def main_keyboard():
     )
     return keyboard
 
-# ========== КНОПКИ В ЧАТЕ ==========
 def inline_buttons():
-    keyboard = InlineKeyboardMarkup()
+    keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
         InlineKeyboardButton("📚 Конспект", callback_data="mode_конспект"),
-        InlineKeyboardButton("💻 Код", callback_data="mode_код")
-    )
-    keyboard.add(
+        InlineKeyboardButton("💻 Код", callback_data="mode_код"),
         InlineKeyboardButton("🌍 Перевод", callback_data="mode_перевод"),
-        InlineKeyboardButton("🔍 Анализ", callback_data="mode_анализ")
-    )
-    keyboard.add(
+        InlineKeyboardButton("🔍 Анализ", callback_data="mode_анализ"),
         InlineKeyboardButton("📖 Объясни", callback_data="mode_объясни"),
-        InlineKeyboardButton("✍️ Написать", callback_data="mode_напиши")
-    )
-    keyboard.add(
+        InlineKeyboardButton("✍️ Написать", callback_data="mode_напиши"),
         InlineKeyboardButton("🆘 Помощь", callback_data="help"),
         InlineKeyboardButton("🗑 Очистить", callback_data="clear")
     )
@@ -89,10 +82,9 @@ def handle_callbacks(call):
         bot.answer_callback_query(call.id, f"✅ Режим: {mode}")
         bot.send_message(call.message.chat.id, 
             f"🔧 **Выбран режим: {mode.upper()}**\n\n"
-            f"Отправь текст или файл для обработки в этом режиме.",
+            f"Отправь текст для обработки в этом режиме.",
             reply_markup=main_keyboard()
         )
-        # Сохраняем режим пользователя
         if user_id not in user_history:
             user_history[user_id] = {"history": [], "mode": mode}
         else:
@@ -104,12 +96,8 @@ def handle_callbacks(call):
             "🆘 **Помощь**\n\n"
             "📌 **Как пользоваться ботом:**\n"
             "1. Выбери режим (Конспект, Код, Перевод и т.д.)\n"
-            "2. Отправь текст или файл\n"
+            "2. Отправь текст\n"
             "3. Бот обработает и ответит\n\n"
-            "📂 **Поддерживаемые форматы:**\n"
-            "• Текст (до 4000 символов)\n"
-            "• Файлы: .txt, .docx, .pdf (текст извлекается)\n"
-            "• Изображения: распознаётся текст на фото\n\n"
             "❓ **Остались вопросы?**\n"
             "Напиши @FlanSupportBot — мой бот-помощник!\n\n"
             "⚡ **Совет:** Используй меню внизу экрана для быстрого выбора режима."
@@ -131,8 +119,7 @@ def start(message):
     if user_id == ADMIN_ID:
         bot.reply_to(message, 
             "👑 **Админ-панель**\n\n"
-            f"📊 Пользователей: {len(user_messages)}\n"
-            "Выбери действие:",
+            f"📊 Пользователей: {len(user_messages)}",
             reply_markup=admin_panel()
         )
     else:
@@ -144,94 +131,26 @@ def start(message):
             "✅ Переводить тексты\n"
             "✅ Анализировать данные\n"
             "✅ Объяснять сложное простым языком\n"
-            "✅ Работать с файлами и фото\n"
             "✅ Помнить контекст диалога\n\n"
             "📌 **Как начать:**\n"
             "1️⃣ Выбери режим в меню внизу\n"
-            "2️⃣ Отправь текст, файл или фото\n"
+            "2️⃣ Отправь текст\n"
             "3️⃣ Получи качественный ответ!\n\n"
             "🆘 Нужна помощь? Нажми 'Помощь' в меню!",
             reply_markup=main_keyboard()
         )
 
-# ========== ОБРАБОТКА ФАЙЛОВ ==========
-@bot.message_handler(content_types=['document'])
-def handle_docs(message):
-    user_id = message.from_user.id
-    
-    try:
-        file_info = bot.get_file(message.document.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        
-        # Сохраняем файл
-        filename = message.document.file_name
-        file_path = f"temp_{hashlib.md5(str(user_id).encode()).hexdigest()}_{filename}"
-        with open(file_path, 'wb') as f:
-            f.write(downloaded_file)
-        
-        # Извлекаем текст (просто для демонстрации)
-        text_preview = str(downloaded_file[:500])  # В реальности нужно парсить docx/pdf
-        
-        bot.reply_to(message, 
-            f"✅ **Файл получен:** {filename}\n"
-            f"📊 Размер: {len(downloaded_file)} байт\n\n"
-            "🔄 Обрабатываю текст из файла...\n"
-            "⏳ Это может занять несколько секунд."
-        )
-        
-        # Здесь должна быть логика извлечения текста из файла
-        # Сейчас для демо просто отправляем запрос с названием файла
-        process_query(message, f"Проанализируй содержимое файла {filename}")
-        
-    except Exception as e:
-        bot.reply_to(message, f"❌ Ошибка при обработке файла: {str(e)}")
-
-# ========== ОБРАБОТКА ФОТО (распознавание) ==========
-@bot.message_handler(content_types=['photo'])
-def handle_photo(message):
-    user_id = message.from_user.id
-    
-    try:
-        # Получаем фото максимального качества
-        photo = message.photo[-1]
-        file_info = bot.get_file(photo.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        
-        # Сохраняем фото
-        file_path = f"photo_{hashlib.md5(str(user_id).encode()).hexdigest()}.jpg"
-        with open(file_path, 'wb') as f:
-            f.write(downloaded_file)
-        
-        bot.reply_to(message,
-            "🖼 **Фото получено!**\n\n"
-            "🔍 Распознаю текст на изображении...\n"
-            "⏳ Пожалуйста, подожди."
-        )
-        
-        # ====== РАСПОЗНАВАНИЕ ТЕКСТА (OCR через Yandex Vision) ======
-        # В реальном коде нужно использовать Yandex Vision API
-        # Сейчас - демо-режим
-        
-        process_query(message, 
-            "Проанализируй и опиши, что изображено на этом фото. "
-            "Если есть текст - распознай его и объясни смысл."
-        )
-        
-    except Exception as e:
-        bot.reply_to(message, f"❌ Ошибка при обработке фото: {str(e)}")
-
-# ========== ОБРАБОТКА ТЕКСТА ==========
+# ========== ОСНОВНАЯ ЛОГИКА ==========
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     user_id = message.from_user.id
     text = message.text
     
-    # Если админ написал не команду
     if user_id == ADMIN_ID and not text.startswith('/'):
         bot.reply_to(message, "👑 Админ-панель:", reply_markup=admin_panel())
         return
     
-    # Обработка кнопок меню (ReplyKeyboard)
+    # Обработка кнопок меню
     if text == "📚 Конспект":
         set_mode(user_id, "конспект")
         bot.reply_to(message, "✅ Режим **Конспект** активирован!\nОтправь текст для конспектирования.")
@@ -271,10 +190,8 @@ def handle_message(message):
         bot.reply_to(message, "🗑 История диалога очищена!")
         return
     
-    # Обычный запрос
     process_query(message, text)
 
-# ========== ОСНОВНАЯ ЛОГИКА ОБРАБОТКИ ==========
 def set_mode(user_id, mode):
     if user_id not in user_history:
         user_history[user_id] = {"history": [], "mode": mode}
@@ -285,7 +202,6 @@ def process_query(message, query_text):
     user_id = message.from_user.id
     username = message.from_user.username or "без username"
     
-    # Сохраняем пользователя
     user_messages[user_id] = {
         'user_id': user_id,
         'username': username,
@@ -293,11 +209,9 @@ def process_query(message, query_text):
         'last_time': time.time()
     }
     
-    # Инициализируем историю
     if user_id not in user_history:
         user_history[user_id] = {"history": [], "mode": "анализ"}
     
-    # Получаем режим
     mode = user_history[user_id].get("mode", "анализ")
     
     # Отправляем админу
@@ -314,18 +228,13 @@ def process_query(message, query_text):
     except:
         pass
     
-    # Сохраняем запрос в историю
     user_history[user_id]["history"].append({"role": "user", "content": query_text})
-    
-    # Обрезаем историю до 20 сообщений
     if len(user_history[user_id]["history"]) > 20:
         user_history[user_id]["history"] = user_history[user_id]["history"][-20:]
     
-    # Отправляем запрос в YandexGPT
     bot.send_chat_action(message.chat.id, 'typing')
     
     try:
-        # Собираем сообщения для API
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + PROMPTS.get(mode, "")},
             *user_history[user_id]["history"]
@@ -351,11 +260,8 @@ def process_query(message, query_text):
         
         if 'result' in result:
             answer = result['result']['alternatives'][0]['message']['text']
-            
-            # Сохраняем ответ в историю
             user_history[user_id]["history"].append({"role": "assistant", "content": answer})
             
-            # Отправляем ответ
             if len(answer) > 4000:
                 for i in range(0, len(answer), 4000):
                     bot.send_message(message.chat.id, answer[i:i+4000])
@@ -374,8 +280,7 @@ def admin_panel():
         InlineKeyboardButton("📊 Статистика", callback_data="admin_stats"),
         InlineKeyboardButton("👥 Пользователи", callback_data="admin_users"),
         InlineKeyboardButton("📨 Рассылка", callback_data="admin_broadcast"),
-        InlineKeyboardButton("⚡ Скорость", callback_data="admin_speed"),
-        InlineKeyboardButton("🔄 Обновить", callback_data="admin_reload")
+        InlineKeyboardButton("⚡ О боте", callback_data="admin_about")
     )
     return keyboard
 
@@ -391,8 +296,7 @@ def admin_callbacks(call):
             f"📊 **Статистика**\n\n"
             f"👥 Пользователей: {len(user_messages)}\n"
             f"💾 В памяти: {sum(len(h['history']) for h in user_history.values())} сообщений\n"
-            f"⏱ Активных: {len([u for u in user_messages.values() if time.time() - u['last_time'] < 3600])}\n"
-            f"⚡ Режимов: {len(PROMPTS)}"
+            f"⏱ Активных: {len([u for u in user_messages.values() if time.time() - u['last_time'] < 3600])}"
         )
     
     elif call.data == "admin_users":
@@ -406,21 +310,16 @@ def admin_callbacks(call):
         bot.send_message(call.message.chat.id, "✏️ Введи текст для рассылки:")
         bot.register_next_step_handler(call.message, send_broadcast)
     
-    elif call.data == "admin_speed":
+    elif call.data == "admin_about":
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id,
-            "⚡ **Ускоренные ответы**\n\n"
-            "✅ Используется многопоточность\n"
-            "✅ Максимальное время ответа: 30 сек\n"
-            "✅ Кеширование часто используемых запросов\n"
-            "✅ Оптимизированный промпт"
+            "⚡ **О боте**\n\n"
+            "🤖 Мощный ИИ-ассистент\n"
+            "🧠 С памятью диалога\n"
+            "📚 6 режимов работы\n"
+            "⚡ Быстрые ответы\n"
+            "🆘 Поддержка @FlanSupportBot"
         )
-    
-    elif call.data == "admin_reload":
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "🔄 Бот перезагружается...")
-        time.sleep(1)
-        bot.send_message(call.message.chat.id, "✅ Бот обновлён!")
 
 def send_broadcast(message):
     if message.from_user.id != ADMIN_ID:
@@ -439,7 +338,6 @@ def send_broadcast(message):
 print("=" * 50)
 print("🤖 МЕГА-БОТ ЗАПУЩЕН!")
 print(f"👑 Админ ID: {ADMIN_ID}")
-print(f"📚 Режимов: {len(PROMPTS)}")
-print("🧠 С памятью, файлами и фото!")
+print("📚 6 режимов работы")
 print("=" * 50)
 bot.polling()
