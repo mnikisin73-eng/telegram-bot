@@ -340,4 +340,9 @@ print("🤖 МЕГА-БОТ ЗАПУЩЕН!")
 print(f"👑 Админ ID: {ADMIN_ID}")
 print("📚 6 режимов работы")
 print("=" * 50)
-bot.polling()
+
+# Нужно для Render (чтобы он знал, что порт занят, даже если это веб-бот)
+if os.getenv("PORT"):
+    print(f"✅ Render порт {os.getenv('PORT')} определен")
+    
+bot.polling(non_stop=True) # Добавил non_stop=True для надежности
